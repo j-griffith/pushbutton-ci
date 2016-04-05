@@ -1,0 +1,31 @@
+rmq:
+  image: "rabbitmq:management"
+  hostname: "rabbit"
+  ports:
+      - '15672:15672'
+
+handler:
+  build: ./handler
+  hostname: "handler"
+  volumes:
+      - ./results_dir:/results_dir
+      - ./handler/src:/src
+      - ~/.ssh:/root/.ssh # If you have a private repo you can add these to your project
+  links:
+      - rmq:rabbit
+  env_file: ci.env
+  command: python /src/handler.py
+
+operator:
+  build: ./operator
+  hostname: "operator"
+  volumes:
+      - ./results_dir:/results_dir
+      - ./operator/src:/src
+      - ~/.ssh:/root/.ssh # If you have a private repo you can add these to your project
+  links:
+      - rmq:rabbit
+  env_file: ci.env
+  # command: cd /src; python /src/operator.py
+  # command: cd /src; python /src/inf.py
+  command: bash /src/startup.sh

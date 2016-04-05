@@ -80,6 +80,9 @@ while reconnect:
         channel.queue_declare(queue='task_queue', durable=True)
         reconnect = 0
     except pika.exceptions.ConnectionClosed as ex:
+        logging.warning('Connection to RMQ failed, '
+                        'remaining attempts: %s' %
+                        reconnect)
         reconnect -= 1
         time.sleep(10)
         if reconnect < 1:

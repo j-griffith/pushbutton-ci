@@ -7,6 +7,7 @@ import playbook_utils
 import random_name
 import shade
 import sys
+import time
 
 cloud = None
 logging.basicConfig(filename='operator.log', level=logging.INFO)
@@ -59,7 +60,7 @@ def callback(ch, method, properties, body):
         instance,
         os.environ.get('localconf'),
         branch=os.environ.get('devstack_branch',
-                        'master'),
+                              'master'),
         cinder_branch=patchset_ref,
         use_floating_ip=use_floating_ip,
         ansible_logdir=ansible_logdir)
@@ -93,12 +94,24 @@ if __name__ == '__main__':
         sys.exit(1)
 
     shade.simple_logging(debug=True)
-    cloud = shade.openstack_cloud(cloud=(os.environ.get('cloud_name', 'envvars')))
+    cloud = shade.openstack_cloud(cloud=(
+        os.environ.get('cloud_name', 'envvars')))
 
-    connection = pika.BlockingConnection(pika.ConnectionParameters(
-        host='rabbit'))
-    channel = connection.channel()
-    channel.queue_declare(queue='task_queue', durable=True)
+    reconnect = 6
+    while reconnect:
+        try:
+            connection = pika.BlockingConnection(pika.ConnectionParameters(
+                host='rabbit'))
+            channel = connection.channel()
+            channel.queue_declare(queue='task_queue', durable=True)
+        except pika.exceptions.ConnectionClosed as ex:
+            logging.warning('Connection to RMQ failed, '
+                            'remaining attempts: %s' %
+                            reconnect)
+            reconnect -= 1
+            time.sleep(10)
+            if reconnect < 1:
+                raise(ex)
 
     channel.basic_qos(prefetch_count=1)
     channel.basic_consume(callback,

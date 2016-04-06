@@ -15,6 +15,7 @@ handler:
       - rmq:rabbit
   env_file: ci.env
   command: python /src/handler.py
+  restart: always
 
 operator:
   build: ./operator
@@ -27,5 +28,5 @@ operator:
       - rmq:rabbit
   env_file: ci.env
   # command: cd /src; python /src/operator.py
-  # command: cd /src; python /src/inf.py
-  command: bash /src/startup.sh
+  command: python /src/inf.py
+  # command: bash /src/startup.sh

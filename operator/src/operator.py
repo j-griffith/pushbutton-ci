@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import json
 import logging
 import os
 import pika
@@ -31,26 +32,29 @@ def create_instance(name=None, image=None, flavor=None, auto_ip=True):
     image = os.environ.get('image_id', image)
     flavor = os.environ.get('flavor_id', flavor)
 
-    logging.info('Creating server with the following params, image: %s, '
+    logging.info('Creating server with the following params, name: %s, image: %s, '
                  'flavor: %s, auto_ip: %s, key_name: %s' %
                  (name, image, flavor, auto_ip, os.environ.get('key_name')))
-    return cloud.create_server(name,
-                               image,
-                               flavor,
-                               auto_ip,
-                               key_name=os.environ.get('key_name'))
-
+    server = cloud.create_server(name,
+                                image=image,
+                                flavor=flavor,
+                                auto_ip=auto_ip,
+                                key_name=os.environ.get('key_name'),
+                                wait=True)
+    return server
 
 def callback(ch, method, properties, body):
-    logging.info('Received even: %s' % body)
-    patchset_ref = body['patchSet']['ref']
+    logging.info('Received event: %s' % body)
+    payload = json.loads(body)
+    patchset_ref = payload['patchSet']['ref']
     ref_name = patchset_ref.replace('/', '-')
     instance = create_instance(name=ref_name,
                                image=os.environ.get('image_id'),
                                flavor=os.environ.get('flavor_id'),
-                               auto_ip=os.environ.get('auto_ip', False))
+                               auto_ip=os.environ.get('auto_ip', True))
 
-    use_floating_ip = os.environ.get('use_floating_ip', False)
+    use_floating_ip = os.environ.get('use_floating_ip', True)
+    use_floating_ip = True
     results_dir = os.environ.get('results_dir')
     results_dir += '/%s' % ref_name
     ansible_logdir = results_dir + ('/%s' % 'ansible_logs')
@@ -63,7 +67,7 @@ def callback(ch, method, properties, body):
                               'master'),
         cinder_branch=patchset_ref,
         use_floating_ip=use_floating_ip,
-        ansible_logdir=ansible_logdir)
+        ansible_log_dir=ansible_logdir)
     logging.info('Output from stackit: %s', output)
 
     if stackit_success:
@@ -104,6 +108,7 @@ if __name__ == '__main__':
                 host='rabbit'))
             channel = connection.channel()
             channel.queue_declare(queue='task_queue', durable=True)
+            reconnect = 0
         except pika.exceptions.ConnectionClosed as ex:
             logging.warning('Connection to RMQ failed, '
                             'remaining attempts: %s' %

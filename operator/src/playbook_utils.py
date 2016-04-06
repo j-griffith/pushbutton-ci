@@ -42,7 +42,7 @@ def stackit(cloud, server, conf_file, branch='master', cinder_branch='master',
     vars += ' results_dir=%s' % ansible_log_dir
     vars += ' patchset_ref=%s' % cinder_branch
 
-    cmd = 'ansible-playbook ./stackbooks/install_devstack.yml --extra-vars '\
+    cmd = 'ansible-playbook /src/stackbooks/install_devstack.yml --extra-vars '\
           '\"%s\" -i %s,' % (vars, host_ip)
     ansible_proc = subprocess.Popen(cmd, shell=True,
                                     stdout=subprocess.PIPE)
@@ -84,7 +84,7 @@ def run_tempest(cloud, server, use_floating_ip=False, ansible_log_dir='/tmp'):
     vars = 'hosts=%s,' % host_ip
     vars += ' results_dir=%s' % ansible_log_dir
 
-    cmd = 'ansible-playbook run_tempest.yml --extra-vars '\
+    cmd = 'ansible-playbook /src/stackbooks/run_tempest.yml --extra-vars '\
           '\"%s\" -i %s,' % (vars, host_ip)
     ansible_proc = subprocess.Popen(cmd, shell=True,
                                     stdout=subprocess.PIPE)
@@ -130,7 +130,7 @@ def gather_logs(cloud, server, upload_script,
     vars += ' upload_script=%s' % upload_script
     vars += ' instance_name=%s' % server.get('name')
 
-    cmd = 'ansible-playbook run_cleanup.yml --extra-vars '\
+    cmd = 'ansible-playbook /src/stackbooks/run_cleanup.yml --extra-vars '\
           '\"%s\" -i %s,' % (vars, host_ip)
     ansible_proc = subprocess.Popen(cmd, shell=True,
                                     stdout=subprocess.PIPE)
@@ -169,7 +169,7 @@ def publish_results(web_server, publish_dir, local_results_dir):
     vars += ' results_dir=%s' % local_results_dir
     vars += ' publish_dir=%s' % publish_dir
 
-    cmd = 'ansible-playbook publish.yml --extra-vars '\
+    cmd = 'ansible-playbook /src/stackbooks/publish.yml --extra-vars '\
           '\"%s\" -i %s,' % (vars, web_server)
     ansible_proc = subprocess.Popen(cmd, shell=True,
                                     stdout=subprocess.PIPE)

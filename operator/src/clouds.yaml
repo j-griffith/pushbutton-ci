@@ -1,5 +1,12 @@
 clouds:
-  bdr:
+  bdr73:
+    region_name: RegionOne
+    auth:
+      username: 'admin'
+      password: 'solidfire'
+      project_name: 'demo'
+      auth_url: 'http://172.16.140.243:5000/v2.0'
+  bdr74:
     region_name: RegionOne
     auth:
       username: 'admin'

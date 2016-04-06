@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-import time
-
 import json
 import logging
 import os
@@ -10,7 +8,7 @@ import pika
 import sys
 import time
 
-logging.basicConfig(filename='handler.log', level=logging.INFO)
+logging.basicConfig(filename='/src/handler.log', level=logging.INFO)
 
 
 class GerritEventStream(object):
@@ -93,15 +91,22 @@ if not _verify_vars:
     logging.error('Missing required variable, exiting!')
     sys.exit(1)
 
-while True:
-    events = []
+connected = False
+events = []
+while not connected:
     try:
         events = GerritEventStream('sfcli')
+        logging.info('Connected to gerrit, streaming events.')
+        connected = True
     except Exception as ex:
         logging.exception('Error connecting to Gerrit: %s', ex)
         time.sleep(60)
         pass
 
+
+logging.info('launching event handler/listener loop')
+loop_counter = 0
+while True:
     for event in events:
         try:
             event = json.loads(event)

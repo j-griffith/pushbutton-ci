@@ -26,22 +26,33 @@ def _verify_vars():
     return True
 
 
+def _add_additional_log_handler(results_dir):
+    logFormatter = logging.Formatter("%(asctime)s [%(threadName)-12.12s]\
+                                     [%(levelname)-5.5s]  %(message)s")
+    my_logger = logging.getLogger()
+    fileHandler = logging.FileHandler("{0}/{1}".format(results_dir,
+                                                       'operator.log'))
+    fileHandler.setFormatter(logFormatter)
+    my_logger.addHandler(fileHandler)
+
+
 def create_instance(name=None, image=None, flavor=None, auto_ip=True):
     if not name:
         name = random_name.generate()
     image = os.environ.get('image_id', image)
     flavor = os.environ.get('flavor_id', flavor)
 
-    logging.info('Creating server with the following params, name: %s, image: %s, '
-                 'flavor: %s, auto_ip: %s, key_name: %s' %
+    logging.info('Creating server with the following params, name: %s, image: '
+                 '%s, flavor: %s, auto_ip: %s, key_name: %s' %
                  (name, image, flavor, auto_ip, os.environ.get('key_name')))
     server = cloud.create_server(name,
-                                image=image,
-                                flavor=flavor,
-                                auto_ip=auto_ip,
-                                key_name=os.environ.get('key_name'),
-                                wait=True)
+                                 image=image,
+                                 flavor=flavor,
+                                 auto_ip=auto_ip,
+                                 key_name=os.environ.get('key_name'),
+                                 wait=True)
     return server
+
 
 def callback(ch, method, properties, body):
     logging.info('Received event: %s' % body)
@@ -57,32 +68,45 @@ def callback(ch, method, properties, body):
     use_floating_ip = True
     results_dir = os.environ.get('results_dir')
     results_dir += '/%s' % ref_name
-    ansible_logdir = results_dir + ('/%s' % 'ansible_logs')
+    try:
+        os.mkdir(results_dir)
+    except OSError as ex:
+        if 'File exists' in ex.strerror:
+            os.rename(results_dir, '%s-%s' % (results_dir,
+                                              random_name.generate()))
+            os.mkdir(results_dir)
+        else:
+            raise ex
+    _add_additional_log_handler(results_dir)
+    time.sleep(10)
 
-    (stackit_success, output) = playbook_utils.stackit(
-        cloud,
-        instance,
-        os.environ.get('localconf'),
-        branch=os.environ.get('devstack_branch',
-                              'master'),
-        cinder_branch=patchset_ref,
-        use_floating_ip=use_floating_ip,
-        ansible_log_dir=ansible_logdir)
+    (stackit_success, output) = (
+        playbook_utils.stackit(cloud,
+                               instance,
+                               os.environ.get('localconf'),
+                               branch=os.environ.get('devstack_branch',
+                                                     'master'),
+                               cinder_branch=patchset_ref,
+                               use_floating_ip=use_floating_ip,
+                               results_dir=results_dir))
+
     logging.info('Output from stackit: %s', output)
+    logging.info('Begin run_tempest....')
+    (tempest_success, output) = (
+        playbook_utils.run_tempest(cloud,
+                                   instance,
+                                   use_floating_ip=use_floating_ip,
+                                   results_dir=results_dir))
+    logging.info('Output from run_tempest: %s', output)
 
-    if stackit_success:
-        (tempest_success, output) = (
-            playbook_utils.run_tempest(cloud,
-                                       instance,
-                                       use_floating_ip=use_floating_ip,
-                                       ansible_log_dir=ansible_logdir))
-
+    # We gather logs regardless of pass/fail
     (bundle_success, output) = (
         playbook_utils.gather_logs(cloud,
                                    instance,
                                    os.environ.get('upload_script'),
                                    use_floating_ip=use_floating_ip,
-                                   ansible_log_dir=ansible_logdir))
+                                   results_dir=results_dir))
+
     logging.info('Output from gather_logs: %s', output)
     publish_location = os.environ.get('publish_dir') + '/' + ref_name
     playbook_utils.publish_results(os.environ.get('web_server_ip'),
